@@ -1,0 +1,43 @@
+{
+    "video": {
+        "source": "input/sample.mp4",
+        "output": "output/annotated/output.mp4"
+    },
+
+    "detection": {
+        "model": "models/yolov11n-face.pt",
+        "confidence": 0.5,
+        "iou": 0.5,
+        "image_size": 1280,
+        "frame_skip": 3
+    },
+
+    "recognition": {
+        "similarity_threshold": 0.45,
+        "embedding_update_interval": 30
+    },
+
+    "tracking": {
+        "tracker": "bytetrack.yaml",
+        "max_missing_frames": 50
+    },
+
+    "hardware": {
+        "device": "cpu"
+    },
+
+    "database": {
+        "path": "database/visitors.db"
+    },
+
+    "logging": {
+        "log_file": "logs/events.log",
+        "save_entry_images": true,
+        "save_exit_images": true
+    },
+
+    "camera": {
+        "type": "file",
+        "rtsp_url": ""
+    }
+}

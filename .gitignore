@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime database
+database/*.db
+database/*.sqlite
+database/*.sqlite3
+
+# Runtime logs
+logs/events.log
+
+# Generated face images
+logs/entries/*
+logs/entrys/*
+logs/exits/*
+
+# Generated output videos
+output/annotated/*
+
+# Temporary files
+*.tmp
+*.temp
+
+# Environment / secrets
+.env
+.env.*
+*.key
+*.pem
+secrets.json
+
+# Generated test videos
+output/*.mp4
+output/annotated/*
+runs/
+
+# Keep required directory structure
+!logs/entries/.gitkeep
+!logs/exits/.gitkeep
+!output/annotated/.gitkeep
