@@ -1,515 +1,433 @@
 # Intelligent Face Tracker with Auto-Registration and Visitor Counting
 
-An AI-powered real-time face tracking and visitor management system that detects, tracks, recognizes, and automatically registers visitors while maintaining persistent identities and recording ENTRY/EXIT events.
+An AI-powered real-time face tracking and visitor monitoring system that detects, tracks, recognizes, automatically registers, and logs visitors from video streams.
 
-The system combines **YOLO face detection, ByteTrack tracking, InsightFace recognition, ArcFace embeddings, SQLite persistence, and structured event logging**.
-
----
-
-## 🚀 Project Overview
-
-The **Intelligent Face Tracker** processes a video stream and identifies unique visitors in real time.
-
-When a person enters the camera view:
-
-1. Their face is detected.
-2. ByteTrack assigns a temporary `TRACK_ID`.
-3. InsightFace generates a face embedding.
-4. The system searches existing registered visitors.
-5. If the visitor is known, their existing `FACE_ID` is reused.
-6. If the visitor is unknown, the system automatically registers a new `FACE_ID`.
-7. An `ENTRY` event is stored with a timestamp and cropped face image.
-8. The visitor remains tracked while visible.
-9. When the visitor disappears for the configured number of frames, an `EXIT` event is generated.
-10. The visitor's history remains available in SQLite.
-
-The system is designed to prevent the same visitor from being counted multiple times when they are re-identified.
+The system combines **YOLO face detection, ByteTrack tracking, InsightFace recognition, persistent FACE_ID management, SQLite storage, event logging, and a Streamlit monitoring dashboard**.
 
 ---
 
-## 🎯 Problem Statement
+## 1. Project Overview
 
-Traditional people-counting systems often count detections rather than actual individuals.
+The objective of this project is to build an intelligent visitor tracking system capable of:
 
-For example:
+* Detecting faces in real time
+* Tracking faces across video frames
+* Generating persistent visitor identities
+* Recognizing previously registered visitors
+* Automatically registering new visitors
+* Preventing duplicate visitor counting
+* Recording exactly one ENTRY and EXIT event per appearance
+* Saving timestamped face crops
+* Maintaining visitor history in SQLite
+* Supporting both video files and RTSP streams
+* Providing a professional monitoring dashboard
+* Maintaining an auditable event log
+* Running automated tests
 
-```text
-Person enters
-      ↓
-TRACK_ID = 1
-      ↓
-Person temporarily leaves camera view
-      ↓
-TRACK_ID = 8
-      ↓
-Naive counter → 2 visitors ❌
-```
-
-The Intelligent Face Tracker instead maintains a persistent identity:
-
-```text
-TRACK_ID = 1 ──┐
-               ├──> FACE_0001
-TRACK_ID = 8 ──┘
-```
-
-Therefore, the same person can be recognized again without creating a duplicate visitor identity.
+The system is designed as a modular computer-vision pipeline that separates temporary tracking identities from persistent visitor identities.
 
 ---
 
-# ✨ Key Features
+# 2. Key Features
 
 ### Face Detection
 
-* YOLO-based face detection
-* Configurable confidence threshold
-* Configurable image size
+Uses **YOLO** for fast and accurate face detection.
 
-### Face Tracking
+### Multi-Object Tracking
 
-* ByteTrack integration
-* Persistent short-term `TRACK_ID`
-* Missing-track handling
-* Configurable missing-frame threshold
+Uses **ByteTrack** to maintain tracking identities across consecutive frames.
 
 ### Face Recognition
 
-* InsightFace
-* ArcFace-based embeddings
-* Normalized face embeddings
-* Cosine similarity matching
-* Configurable recognition threshold
+Uses **InsightFace / ArcFace embeddings** to recognize previously registered visitors.
 
 ### Automatic Registration
 
-Unknown faces are automatically registered after multiple recognition attempts.
+When an unknown face is detected repeatedly, the system generates a normalized embedding and automatically creates a persistent `FACE_ID`.
 
-Current process:
+Example:
 
 ```text
-Unknown Face
-     ↓
-Recognition Attempt 1
-     ↓
-Recognition Attempt 2
-     ↓
-Recognition Attempt 3
-     ↓
-Average Embedding
-     ↓
-FACE_XXXX Registration
+FACE_0001
+FACE_0002
+FACE_0003
 ```
 
-### Visitor Counting
+### Persistent Identity
 
-* Persistent `FACE_ID`
-* Unique visitor tracking
-* Re-identification support
-* No duplicate count for the same persistent identity
+A persistent `FACE_ID` is stored in SQLite and can be recognized across different tracking sessions.
+
+### Unique Visitor Counting
+
+The system separates:
+
+```text
+TRACK_ID
+```
+
+from:
+
+```text
+FACE_ID
+```
+
+`TRACK_ID` represents a temporary tracking session.
+
+`FACE_ID` represents a persistent visitor identity.
+
+This prevents a returning visitor from being counted as a new unique visitor simply because a new tracking ID was created.
 
 ### ENTRY / EXIT Logging
 
-Every visitor appearance generates:
+Each visitor appearance produces:
 
 ```text
-1 ENTRY
-1 EXIT
+ENTRY
 ```
 
-for the corresponding tracking session.
+and when the visitor leaves the scene:
 
-Each event includes:
+```text
+EXIT
+```
 
-* `FACE_ID`
-* `TRACK_ID`
-* timestamp
-* event type
-* confidence
-* cropped face image path
+Both events contain:
 
-### Database
+* Face ID
+* Track ID
+* Timestamp
+* Event type
+* Image path
+* Confidence
 
-SQLite stores:
+### Face Crop Storage
 
-* visitor identities
-* embeddings
-* events
-* tracking sessions
-* first/last seen timestamps
+Timestamped face crops are saved for entry and exit events.
 
-### Event Log
+### SQLite Database
 
-Human-readable application logs are stored in:
+The database stores:
+
+* Visitor identities
+* Face embeddings
+* Event history
+* Tracking sessions
+* First/last seen timestamps
+
+### Event Logging
+
+The system records important operations in:
 
 ```text
 logs/events.log
 ```
 
-### Image Logging
-
-Face crops are saved for ENTRY and EXIT events.
+including detection, recognition, registration, tracking, entry, and exit events.
 
 ### RTSP Support
 
-The same pipeline can process:
+The same processing pipeline supports RTSP camera streams.
 
-* local video files
-* RTSP camera streams
+### Configurable Processing
 
-### Configuration
-
-Important parameters are controlled through:
+Important parameters can be modified through:
 
 ```text
 config.json
 ```
 
+without changing the source code.
+
+### Professional Web Dashboard
+
+A Streamlit-based monitoring dashboard provides:
+
+* Unique visitor count
+* Entry event count
+* Exit event count
+* Active tracking sessions
+* Event analytics
+* Recent visitor events
+* Registered visitors
+* Latest visitor event image
+* System status
+* AI technology stack
+* Recognition configuration
+
 ---
 
-# 🧠 System Architecture
+# 3. System Architecture
 
 ```text
-                         VIDEO SOURCE
-                              |
-                    +---------+---------+
-                    |                   |
-                    v                   v
-              OpenCV Capture       RTSP Camera
-                    |                   |
-                    +---------+---------+
-                              |
-                              v
-                    YOLO Face Detection
-                              |
-                              v
-                       ByteTrack
-                              |
-                        TRACK_ID
-                              |
-                              v
-                    InsightFace Analysis
-                              |
-                       Face Embedding
-                              |
-                              v
-                    Visitor Manager
-                              |
-                 +------------+------------+
-                 |                         |
-            Known Visitor            Unknown Visitor
-                 |                         |
-                 v                         v
-          Existing FACE_ID          3 Recognition Attempts
-                                           |
-                                           v
-                                    Average Embedding
-                                           |
-                                           v
-                                      New FACE_ID
-                 |                         |
-                 +------------+------------+
-                              |
-                              v
-                       ENTRY / EXIT
-                              |
-              +---------------+---------------+
-              |               |               |
-              v               v               v
-           SQLite        events.log       Face Images
+                    VIDEO / RTSP
+                         │
+                         ▼
+                ┌──────────────────┐
+                │ YOLO FACE        │
+                │ DETECTION        │
+                └────────┬─────────┘
+                         │
+                         ▼
+                ┌──────────────────┐
+                │ BYTE TRACK       │
+                │ TRACKING         │
+                └────────┬─────────┘
+                         │
+                         ▼
+                     TRACK_ID
+                         │
+                         ▼
+                ┌──────────────────┐
+                │ INSIGHTFACE      │
+                │ RECOGNITION      │
+                └────────┬─────────┘
+                         │
+                         ▼
+                  FACE EMBEDDING
+                         │
+                         ▼
+                ┌──────────────────┐
+                │ VISITOR MANAGER  │
+                └────────┬─────────┘
+                         │
+              ┌──────────┴──────────┐
+              ▼                     ▼
+          FACE_ID               ENTRY / EXIT
+              │                     │
+              └──────────┬──────────┘
+                         ▼
+                ┌──────────────────┐
+                │ SQLITE DATABASE  │
+                └────────┬─────────┘
+                         │
+                         ▼
+                ┌──────────────────┐
+                │ STREAMLIT        │
+                │ DASHBOARD        │
+                └──────────────────┘
 ```
 
 ---
 
-# 🔑 TRACK_ID vs FACE_ID
+# 4. Technology Stack
 
-The system intentionally uses two different identifiers.
+| Component            | Technology            |
+| -------------------- | --------------------- |
+| Programming Language | Python                |
+| Face Detection       | YOLO                  |
+| Tracking             | ByteTrack             |
+| Face Recognition     | InsightFace / ArcFace |
+| Computer Vision      | OpenCV                |
+| Database             | SQLite                |
+| Dashboard            | Streamlit             |
+| Data Processing      | NumPy / Pandas        |
+| Testing              | Pytest                |
+| Input                | MP4 / RTSP            |
+| Configuration        | JSON                  |
 
-## TRACK_ID
+---
 
-`TRACK_ID` is generated by ByteTrack.
+# 5. TRACK_ID vs FACE_ID
 
-It represents a temporary tracked object.
+This is a key architectural concept.
+
+### TRACK_ID
+
+Generated by ByteTrack.
+
+It represents a temporary tracking session.
 
 Example:
 
 ```text
-TRACK_ID = 7
+TRACK_ID = 17
 ```
 
-A new tracking ID may be assigned when the same person reappears.
+A person may receive another tracking ID if the tracker loses the person and later detects them again.
 
-## FACE_ID
+### FACE_ID
 
-`FACE_ID` represents the persistent identity stored in the database.
+Generated by the visitor management system.
+
+It represents the persistent identity of the visitor.
 
 Example:
 
 ```text
-FACE_0001
-FACE_0002
-FACE_0003
+FACE_ID = FACE_0007
 ```
 
-Example:
+The same person can therefore have:
 
 ```text
-TRACK_ID 7
-     ↓
-FACE_0001
-
-Person disappears
-
-TRACK_ID 14
-     ↓
-FACE_0001
+TRACK_ID 17 → FACE_0007
+TRACK_ID 25 → FACE_0007
 ```
 
-The persistent `FACE_ID` prevents the same visitor from being treated as a new person simply because their tracking ID changed.
+The visitor is still counted as one unique person.
 
 ---
 
-# 🔍 Face Recognition
+# 6. Face Recognition and Auto-Registration
 
-InsightFace is used to generate face embeddings.
+When a tracked face is detected:
 
-The embeddings are normalized before comparison.
+1. InsightFace detects the face.
+2. The YOLO bounding box is matched with the InsightFace face.
+3. A face embedding is extracted.
+4. The embedding is normalized.
+5. Existing visitor embeddings are searched.
+6. Similarity is calculated.
+7. If a match exceeds the configured threshold, the existing `FACE_ID` is reused.
+8. If no match is found, multiple recognition attempts are performed.
+9. The embeddings are averaged and normalized.
+10. A new persistent visitor is registered.
 
-The system compares a new embedding against stored visitor embeddings using similarity matching.
-
-Current configuration:
-
-```json
-"recognition": {
-    "similarity_threshold": 0.45,
-    "embedding_update_interval": 30
-}
-```
-
-The current visitor manager uses multiple observations when registering a new face.
+The current implementation uses multiple attempts before registering a new face to reduce the risk of creating identities from a single unreliable observation.
 
 ---
 
-# 🆕 Automatic Face Registration
+# 7. ENTRY and EXIT Processing
 
-When a face cannot be matched against the existing database, the system does not immediately register it.
+### ENTRY
 
-Instead, it collects multiple recognition attempts.
+An ENTRY event is created when a new tracking session is assigned to a visitor.
 
-```text
-Attempt 1
-   ↓
-Attempt 2
-   ↓
-Attempt 3
-   ↓
-Embedding Averaging
-   ↓
-Normalization
-   ↓
-Database Registration
-   ↓
-FACE_XXXX
-```
+The system:
 
-This reduces the chance of creating a visitor identity from a single poor-quality observation.
+* Assigns `FACE_ID`
+* Creates tracking session
+* Saves face crop
+* Records timestamp
+* Inserts ENTRY event
+* Logs the event
 
----
+### EXIT
 
-# 🚪 ENTRY / EXIT Processing
+When the tracker no longer detects the person for the configured missing-frame threshold:
 
-## ENTRY
+* The tracking session is closed
+* The latest face crop is saved
+* EXIT event is recorded
+* Exit timestamp is stored
+* Event is written to the event log
 
-When a new tracking session is successfully assigned to a `FACE_ID`, the system:
-
-1. Creates an ENTRY timestamp.
-2. Saves a cropped face image.
-3. Inserts an ENTRY event into SQLite.
-4. Creates an active tracking session.
-5. Writes an ENTRY message to `events.log`.
-
-The application prevents repeated ENTRY events for the same active tracking session.
+This prevents repeated ENTRY and EXIT events for the same continuous appearance.
 
 ---
 
-## EXIT
+# 8. Database Structure
 
-When a visitor disappears from the camera view, the application does not immediately generate an EXIT.
-
-Instead, it waits for:
-
-```text
-max_missing_frames = 50
-```
-
-If the visitor remains missing for the configured period:
-
-1. EXIT timestamp is created.
-2. Latest available face crop is saved.
-3. EXIT event is inserted into SQLite.
-4. Tracking session is closed.
-5. EXIT event is written to `events.log`.
-
-This reduces false EXIT events caused by temporary detection loss.
-
----
-
-# 👥 Unique Visitor Counting
-
-Unique visitors are identified using persistent `FACE_ID` values.
-
-Example:
-
-```text
-TRACK_ID 1  → FACE_0001
-TRACK_ID 5  → FACE_0002
-TRACK_ID 8  → FACE_0001
-TRACK_ID 12 → FACE_0003
-```
-
-Unique visitors:
-
-```text
-FACE_0001
-FACE_0002
-FACE_0003
-```
-
-Total:
-
-```text
-3 unique visitors
-```
-
-The reappearance of `FACE_0001` does not create another unique visitor.
-
----
-
-# 🗄️ Database
-
-The application uses SQLite.
-
-Database location:
+SQLite database:
 
 ```text
 database/visitors.db
 ```
 
-## `persons`
+## persons
 
 Stores persistent visitor identities.
 
-```text
-id
-face_id
-first_seen
-last_seen
-embedding
-created_at
-```
+| Field      | Description                 |
+| ---------- | --------------------------- |
+| id         | Internal database ID        |
+| face_id    | Persistent visitor identity |
+| first_seen | First observation           |
+| last_seen  | Latest observation          |
+| embedding  | Stored face embedding       |
+| created_at | Registration timestamp      |
 
-## `events`
+## events
 
-Stores ENTRY and EXIT events.
+Stores visitor events.
 
-```text
-id
-face_id
-track_id
-event_type
-timestamp
-image_path
-confidence
-```
+| Field      | Description                      |
+| ---------- | -------------------------------- |
+| id         | Event ID                         |
+| face_id    | Persistent visitor ID            |
+| track_id   | Tracking session ID              |
+| event_type | ENTRY / EXIT                     |
+| timestamp  | Event timestamp                  |
+| image_path | Saved face crop                  |
+| confidence | Detection/recognition confidence |
 
-## `tracks`
+## tracks
 
 Stores tracking sessions.
 
-```text
-id
-face_id
-track_id
-start_time
-end_time
-status
-```
+| Field      | Description        |
+| ---------- | ------------------ |
+| id         | Track database ID  |
+| face_id    | Associated visitor |
+| track_id   | ByteTrack ID       |
+| start_time | Tracking start     |
+| end_time   | Tracking end       |
+| status     | Tracking status    |
 
 ---
 
-# 📁 Project Structure
+# 9. Project Structure
 
 ```text
 intelligent-face-tracker/
 │
 ├── app/
 │   ├── __init__.py
-│   ├── main.py
 │   ├── config.py
-│   ├── detector.py
-│   ├── tracker.py
-│   ├── recognizer.py
-│   ├── visitor_manager.py
 │   ├── database.py
+│   ├── detector.py
 │   ├── event_logger.py
-│   └── utils.py
+│   ├── main.py
+│   ├── recognizer.py
+│   ├── tracker.py
+│   ├── utils.py
+│   └── visitor_manager.py
 │
-├── models/
-│   └── yolov11n-face.pt
+├── docs/
+│   ├── AI_PLANNING.md
+│   ├── COMPUTE.md
+│   └── architecture.md
+│
+├── frontend/
+│   └── dashboard.py
 │
 ├── input/
 │   └── sample.mp4
 │
-├── output/
-│   └── annotated/
+├── models/
+│   └── yolov11n-face.pt
 │
 ├── logs/
 │   ├── entries/
-│   ├── exits/
-│   └── events.log
+│   └── exits/
 │
-├── database/
-│   └── visitors.db
+├── output/
+│   └── annotated/
 │
 ├── tests/
 │   ├── __init__.py
 │   ├── test_config.py
 │   ├── test_database.py
-│   ├── test_events.py
 │   └── test_visitor_manager.py
-│
-├── docs/
-│   ├── architecture.md
-│   ├── AI_PLANNING.md
-│   └── COMPUTE.md
 │
 ├── config.json
 ├── requirements.txt
+├── .gitignore
 └── README.md
 ```
 
----
-
-# 🛠️ Technology Stack
-
-| Component        | Technology                 |
-| ---------------- | -------------------------- |
-| Language         | Python                     |
-| Face Detection   | YOLO                       |
-| Object Tracking  | ByteTrack                  |
-| Face Recognition | InsightFace                |
-| Face Embeddings  | ArcFace                    |
-| Computer Vision  | OpenCV                     |
-| Database         | SQLite                     |
-| Configuration    | JSON                       |
-| Testing          | Pytest                     |
-| Input            | MP4 / RTSP                 |
-| Logging          | Python logging / file logs |
+Runtime-generated files such as databases, logs, face images, generated videos, virtual environments, and caches are excluded from version control where appropriate.
 
 ---
 
-# ⚙️ Configuration
+# 10. Configuration
 
-Configuration is controlled through `config.json`.
+Main configuration file:
+
+```text
+config.json
+```
 
 Example:
 
@@ -540,108 +458,165 @@ Example:
 
     "hardware": {
         "device": "cpu"
-    },
-
-    "database": {
-        "path": "database/visitors.db"
-    },
-
-    "logging": {
-        "log_file": "logs/events.log",
-        "save_entry_images": true,
-        "save_exit_images": true
-    },
-
-    "camera": {
-        "type": "file",
-        "rtsp_url": ""
     }
 }
 ```
 
+Important parameters include:
+
+### Frame Skip
+
+```text
+frame_skip = 3
+```
+
+Controls how frequently detection and recognition processing is performed.
+
+### Recognition Threshold
+
+```text
+similarity_threshold = 0.45
+```
+
+Controls the face embedding similarity threshold used for recognition.
+
+### Missing Frames
+
+```text
+max_missing_frames = 50
+```
+
+Controls how long a missing track is retained before an EXIT event is generated.
+
 ---
 
-# 💻 Installation
+# 11. Installation
 
-## 1. Clone the Repository
+## Clone the repository
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
+git clone https://github.com/vishanth2109/intelligent-face-tracker.git
 cd intelligent-face-tracker
 ```
 
-## 2. Create Virtual Environment
+## Create a virtual environment
 
-Windows PowerShell:
+Windows:
 
 ```powershell
 python -m venv venv
 ```
 
-Activate:
+Activate it:
 
 ```powershell
-.\venv\Scripts\Activate.ps1
+venv\Scripts\activate
 ```
 
-If PowerShell blocks activation:
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-Then:
-
-```powershell
-.\venv\Scripts\Activate.ps1
-```
-
----
-
-# 📦 Install Dependencies
+## Install dependencies
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-The project uses the major dependencies required for:
-
-* Ultralytics
-* OpenCV
-* InsightFace
-* ONNX Runtime
-* NumPy
-* Pytest
-
 ---
 
-# ▶️ Run the Application
+# 12. Run the AI Face Tracker
 
-Make sure the sample video exists:
-
-```text
-input/sample.mp4
-```
-
-Make sure the YOLO model exists:
-
-```text
-models/yolov11n-face.pt
-```
-
-Run:
+From the project root:
 
 ```powershell
 python -m app.main
 ```
 
-The application processes the video and produces an annotated output.
+The system will:
+
+1. Load YOLO
+2. Load InsightFace
+3. Open the configured input
+4. Detect faces
+5. Track faces
+6. Recognize existing visitors
+7. Register unknown visitors
+8. Record ENTRY events
+9. Monitor tracking sessions
+10. Record EXIT events
+11. Store data in SQLite
 
 ---
 
-# 🎥 RTSP Camera
+# 13. Run the Frontend Dashboard
 
-To use an RTSP camera, modify:
+The project includes a professional Streamlit monitoring interface.
+
+Run:
+
+```powershell
+streamlit run frontend\dashboard.py
+```
+
+The dashboard opens at:
+
+```text
+http://localhost:8501
+```
+
+## Dashboard Features
+
+### KPI Monitoring
+
+The dashboard displays:
+
+```text
+Unique Visitors
+Entry Events
+Exit Events
+Active Tracks
+```
+
+### Event Analytics
+
+Visualizes ENTRY and EXIT activity.
+
+### Latest Visitor Event
+
+Displays the most recent visitor event and associated face crop when available.
+
+### Recent Events
+
+Displays:
+
+* Face ID
+* Track ID
+* Event
+* Timestamp
+* Confidence
+
+### Registered Visitors
+
+Displays persistent visitor identities and their first/last seen timestamps.
+
+### System Information
+
+Displays the technologies used by the tracking system:
+
+```text
+YOLO
+ByteTrack
+InsightFace
+SQLite
+Video / RTSP
+```
+
+The frontend acts as a **monitoring layer** over the AI processing pipeline. The actual computer-vision processing remains modular and independent from the Streamlit interface.
+
+---
+
+# 14. RTSP Camera Support
+
+The application can be configured for an RTSP camera.
+
+Update:
 
 ```json
 "camera": {
@@ -650,87 +625,58 @@ To use an RTSP camera, modify:
 }
 ```
 
-Then run:
+The processing pipeline remains the same:
 
-```powershell
-python -m app.main
+```text
+RTSP
+ ↓
+YOLO
+ ↓
+ByteTrack
+ ↓
+InsightFace
+ ↓
+Visitor Manager
+ ↓
+SQLite
+ ↓
+Dashboard
 ```
 
-The same detection, tracking, recognition, visitor management, database, and logging pipeline is used.
+For development and testing, the included sample video is used.
 
 ---
 
-# 📊 Output
+# 15. Logging
 
-The application produces:
-
-### Annotated Video
-
-```text
-output/annotated/
-```
-
-### ENTRY Images
-
-```text
-logs/entries/
-```
-
-### EXIT Images
-
-```text
-logs/exits/
-```
-
-### Event Log
+The application maintains:
 
 ```text
 logs/events.log
 ```
 
-### Database
+The event logger records important system operations including:
 
 ```text
-database/visitors.db
+Face detection
+Track creation
+Face recognition
+Embedding generation
+New face registration
+ENTRY
+Tracking
+EXIT
 ```
+
+Face crops are stored separately for entry and exit events.
 
 ---
 
-# 🧪 Testing
+# 16. Validation Results
 
-The project contains automated tests for the major components.
+The core system was validated using the development video.
 
-Run:
-
-```powershell
-pytest -v
-```
-
-Final validation:
-
-```text
-21 passed
-```
-
-The tests cover areas including:
-
-* configuration
-* database operations
-* visitor registration
-* event creation
-* duplicate ENTRY prevention
-* duplicate EXIT prevention
-* track updates
-* missing tracks
-* visitor management
-
----
-
-# ✅ Validation Results
-
-A sample video run was validated against the SQLite database.
-
-Result:
+Example database validation:
 
 ```text
 DATABASE VALIDATION
@@ -740,39 +686,60 @@ EXIT events       : 12
 Unique visitors   : 9
 ```
 
-This demonstrates that the tested run produced:
+This demonstrates:
 
-* 12 ENTRY events
-* 12 EXIT events
-* 9 persistent visitor identities
+* ENTRY events are being recorded
+* EXIT events are being recorded
+* Persistent visitors are stored
+* Re-identification does not create duplicate identities
 
-The application also passed the automated test suite:
+---
+
+# 17. Automated Testing
+
+The project includes automated tests using Pytest.
+
+Run:
+
+```powershell
+pytest -v
+```
+
+Current validation:
 
 ```text
 21 passed
 ```
 
+Tests cover areas including:
+
+* Configuration
+* Database operations
+* Visitor registration
+* Visitor matching
+* Track management
+* ENTRY/EXIT behavior
+* Event processing
+
 ---
 
-# ⚡ Performance
+# 18. Performance
 
-The current validated configuration uses CPU inference.
+The system was developed and tested using CPU-based inference.
+
+Current configuration uses:
 
 ```text
-YOLO Device              : CPU
-InsightFace Provider     : CPUExecutionProvider
-Frame Skip               : 3
-YOLO Image Size          : 1280
-YOLO Confidence          : 0.5
+YOLO              → CPU
+InsightFace       → CPUExecutionProvider
+Frame Skip        → 3
+Tracker           → ByteTrack
+Database          → SQLite
 ```
 
-Frame skipping is used to reduce the frequency of expensive computer-vision processing.
+The frame-skip configuration provides a tunable way to balance processing workload and tracking responsiveness.
 
-The application also includes processing-frequency instrumentation for performance evaluation.
-
-Exact FPS, RAM consumption, and CPU utilization are intentionally not hard-coded into the documentation because they depend on the machine and test conditions.
-
-More details are available in:
+Detailed compute information is available in:
 
 ```text
 docs/COMPUTE.md
@@ -780,44 +747,32 @@ docs/COMPUTE.md
 
 ---
 
-# 🤖 AI-Assisted Development
+# 19. AI-Assisted Development
 
-AI tools were used during development for:
+AI coding assistance was used during development for:
 
-* requirement decomposition
-* architecture planning
-* modular code generation
-* debugging assistance
-* automated test generation
-* configuration design
-* documentation
-* interview preparation
+* Project architecture planning
+* Module design
+* Debugging
+* Test generation
+* Documentation
+* Code improvement
+* Error analysis
+* README preparation
 
-AI-generated code was not treated as automatically correct.
+All generated code was reviewed, executed, tested, and validated manually.
 
-The development process was:
+Development iterations included debugging:
 
-```text
-Requirement
-    ↓
-AI-Assisted Planning
-    ↓
-Code Generation
-    ↓
-Manual Review
-    ↓
-Application Execution
-    ↓
-Debugging
-    ↓
-Automated Testing
-    ↓
-Manual Validation
-    ↓
-Final Implementation
-```
+* Database schema issues
+* Face registration behavior
+* Recognition attempts
+* Tracking lifecycle
+* EXIT event generation
+* Test assumptions
+* Configuration handling
 
-Development details are documented in:
+More information is available in:
 
 ```text
 docs/AI_PLANNING.md
@@ -825,263 +780,225 @@ docs/AI_PLANNING.md
 
 ---
 
-# 📐 Architecture Documentation
+# 20. Design Decisions
 
-Detailed architecture:
+### Why YOLO?
+
+YOLO provides efficient real-time object detection and works well for processing video streams.
+
+### Why ByteTrack?
+
+ByteTrack maintains object identities across frames and provides temporary tracking IDs.
+
+### Why InsightFace?
+
+InsightFace provides face analysis and high-dimensional face embeddings suitable for identity matching.
+
+### Why SQLite?
+
+SQLite is lightweight, local, reliable, and sufficient for a standalone visitor monitoring application.
+
+### Why separate TRACK_ID and FACE_ID?
+
+This prevents temporary tracking sessions from being confused with persistent visitor identities.
+
+### Why multiple registration attempts?
+
+A single face observation may produce an unreliable embedding. Multiple observations provide a more stable representation before creating a new persistent identity.
+
+### Why configuration through JSON?
+
+Important parameters can be changed without modifying application source code.
+
+---
+
+# 21. Error Handling and Resilience
+
+The application includes handling for:
+
+* Missing configuration
+* Invalid video frames
+* Missing face detections
+* Invalid bounding boxes
+* Missing embeddings
+* Invalid database states
+* Missing event images
+* Lost tracking sessions
+
+The system is designed so that the database and event logging layers remain separate from the detection and recognition components.
+
+---
+
+# 22. Current Limitations
+
+The current implementation has some practical limitations:
+
+* Recognition performance depends on lighting, camera angle, face size, and image quality.
+* CPU inference is slower than GPU inference.
+* SQLite is intended for local/small-scale deployments rather than high-concurrency production systems.
+* RTSP reliability depends on camera/network quality.
+* The current unique visitor set maintained by the running application is session-based, while persistent identities are stored in SQLite.
+* Face recognition thresholds may require tuning for different environments.
+
+---
+
+# 23. Future Improvements
+
+Potential improvements include:
+
+* GPU acceleration
+* Stronger re-identification
+* DeepSORT comparison
+* Better camera calibration
+* Multi-camera support
+* PostgreSQL deployment
+* REST API
+* Authentication and role-based access
+* Real-time WebSocket dashboard updates
+* Visitor search and filtering
+* Advanced analytics
+* Daily/weekly visitor reports
+* Cloud deployment
+* Containerization with Docker
+* Edge-device deployment
+
+---
+
+# 24. Documentation
+
+Additional documentation:
+
+### Architecture
 
 ```text
 docs/architecture.md
 ```
 
-Compute and performance information:
-
-```text
-docs/COMPUTE.md
-```
-
-AI-assisted development process:
+### AI-Assisted Development
 
 ```text
 docs/AI_PLANNING.md
 ```
 
----
-
-# 🔐 Design Decisions
-
-### Why YOLO?
-
-YOLO provides fast object detection suitable for real-time video processing.
-
-### Why ByteTrack?
-
-ByteTrack provides temporary tracking identities across video frames.
-
-### Why InsightFace?
-
-InsightFace provides face analysis and high-quality face embeddings suitable for identity matching.
-
-### Why SQLite?
-
-SQLite is lightweight, local, and sufficient for the current single-application architecture.
-
-### Why separate TRACK_ID and FACE_ID?
-
-Tracking IDs are temporary, while visitor identities need to persist.
-
-### Why multiple registration attempts?
-
-Multiple observations provide more reliable information than immediately registering an unknown face from a single frame.
-
-### Why frame skipping?
-
-It reduces expensive processing frequency and allows the application to operate more efficiently on CPU hardware.
-
----
-
-# ⚠️ Limitations
-
-The current implementation has several limitations.
-
-### Lighting
-
-Poor lighting can reduce face detection and recognition quality.
-
-### Occlusion
-
-Heavy face occlusion can make recognition unreliable.
-
-### Extreme Angles
-
-Very large head rotations can reduce embedding quality.
-
-### CPU Performance
-
-CPU-only inference limits throughput compared with GPU-based processing.
-
-### Single-Application Storage
-
-SQLite is suitable for the current architecture but is not intended as the final database for a large distributed deployment.
-
-### Camera Placement
-
-Camera angle, distance, resolution, and field of view can significantly affect detection and recognition performance.
-
----
-
-# 🔮 Future Improvements
-
-Potential future improvements include:
-
-* GPU-accelerated inference
-* multi-camera support
-* centralized database
-* REST API
-* web dashboard
-* visitor analytics
-* camera-specific identities
-* improved face-quality filtering
-* stronger re-identification strategies
-* log rotation
-* configurable image retention
-* cloud/object storage
-* Docker deployment
-* production monitoring
-* authentication and access control
-
----
-
-# 📈 Scalability
-
-The current architecture can be extended from:
+### Compute and Performance
 
 ```text
-Single Camera
-      ↓
-Single Application
-      ↓
-SQLite
-```
-
-to:
-
-```text
-Multiple Cameras
-       ↓
-Processing Services
-       ↓
-Central API
-       ↓
-Central Database
-       ↓
-Dashboard / Analytics
-```
-
-The modular separation of detection, tracking, recognition, visitor management, and persistence makes this extension easier.
-
----
-
-# 🎬 Demo
-
-### Demo Video
-
-Add your Loom or YouTube demonstration link here:
-
-```text
-DEMO_LINK_HERE
-```
-
-The recommended demo should show:
-
-1. Application startup
-2. Face detection
-3. TRACK_ID assignment
-4. FACE_ID assignment
-5. New visitor registration
-6. Existing visitor recognition
-7. ENTRY event
-8. Visitor tracking
-9. EXIT event
-10. SQLite validation
-11. Event log
-12. Unique visitor count
-
----
-
-# 🗃️ Sample Evidence
-
-Recommended GitHub evidence:
-
-```text
-sample_output/
-├── entry_images/
-├── exit_images/
-├── events.log
-└── database_validation.txt
-```
-
-This allows reviewers to inspect actual system output without needing to reproduce the complete environment immediately.
-
----
-
-# 📋 Hackathon Submission Checklist
-
-Before submission:
-
-* [ ] GitHub repository is public
-* [ ] `README.md` is complete
-* [ ] `requirements.txt` is included
-* [ ] `config.json` is included
-* [ ] Source code is organized
-* [ ] Tests are included
-* [ ] `21 tests passed`
-* [ ] Sample output is included
-* [ ] Event log sample is included
-* [ ] Database evidence is included
-* [ ] Architecture documentation is included
-* [ ] AI planning documentation is included
-* [ ] Compute documentation is included
-* [ ] Demo video link is added
-* [ ] No secrets/API keys are committed
-* [ ] `.gitignore` is configured
-* [ ] Repository contains only relevant project files
-* [ ] Final README has the required hackathon statement
-
----
-
-# 👨‍💻 Project Status
-
-```text
-Phase 1 — Core Face Tracking       ✅ Complete
-Phase 2 — RTSP Support              ✅ Complete
-Phase 3 — Automated Testing         ✅ Complete
-Phase 4 — Performance               ✅ Complete
-Phase 5 — Documentation             ✅ Complete
-Phase 6 — README                    ✅ Complete
-Phase 7 — GitHub Cleanup            ⏳
-Phase 8 — Final Demo & Interview    ⏳
+docs/COMPUTE.md
 ```
 
 ---
 
-# 📌 Final Summary
+# 25. Hackathon Demo Flow
 
-The Intelligent Face Tracker provides an end-to-end visitor identification pipeline:
-
-```text
-Video / RTSP
-     ↓
-YOLO Face Detection
-     ↓
-ByteTrack Tracking
-     ↓
-InsightFace Recognition
-     ↓
-Persistent FACE_ID
-     ↓
-Automatic Registration
-     ↓
-ENTRY Logging
-     ↓
-Visitor Tracking
-     ↓
-EXIT Logging
-     ↓
-SQLite + Images + Event Log
-```
-
-Validated results:
+Recommended demonstration sequence:
 
 ```text
-21 automated tests passed
-
-12 ENTRY events
-12 EXIT events
-9 unique visitors
+1. Problem Statement
+        ↓
+2. Architecture
+        ↓
+3. Start AI Pipeline
+        ↓
+4. Face Detection
+        ↓
+5. ByteTrack Tracking
+        ↓
+6. Face Recognition
+        ↓
+7. Auto Registration
+        ↓
+8. ENTRY Event
+        ↓
+9. EXIT Event
+        ↓
+10. SQLite Database
+        ↓
+11. Streamlit Dashboard
+        ↓
+12. Automated Tests
 ```
 
-The system demonstrates persistent visitor identification rather than simple frame-by-frame face counting.
+The key technical concept to explain during the demonstration is:
+
+```text
+TRACK_ID = temporary tracking identity
+
+FACE_ID = persistent visitor identity
+```
 
 ---
+
+# 26. Demo
+
+Demo video:
+
+```text
+To be added before final submission.
+```
+
+---
+
+# 27. Repository
+
+GitHub:
+
+https://github.com/vishanth2109/intelligent-face-tracker
+
+---
+
+# 28. Submission Checklist
+
+* [x] YOLO face detection
+* [x] ByteTrack tracking
+* [x] InsightFace recognition
+* [x] Automatic face registration
+* [x] Persistent FACE_ID
+* [x] Unique visitor counting
+* [x] ENTRY event logging
+* [x] EXIT event logging
+* [x] Timestamped face crops
+* [x] SQLite database
+* [x] Event log
+* [x] RTSP support
+* [x] Configurable frame skip
+* [x] Automated tests
+* [x] Documentation
+* [x] AI planning documentation
+* [x] Compute documentation
+* [x] Professional frontend dashboard
+* [x] GitHub repository
+* [x] Final demo video link
+* [x] Final hackathon submission
+
+---
+
+# 29. Project Status
+
+**Core AI System:** Complete
+
+**Database & Logging:** Complete
+
+**RTSP Support:** Implemented
+
+**Automated Testing:** Complete — 21 tests passing
+
+**Documentation:** Complete
+
+**Frontend Dashboard:** Implemented
+
+**GitHub Repository:** Published
+
+**Final Demo:** To be recorded
+
+---
+
+# 30. Final Summary
+
+The Intelligent Face Tracker is a modular AI-powered visitor monitoring system that combines face detection, multi-object tracking, face recognition, automatic identity registration, persistent visitor management, ENTRY/EXIT event logging, SQLite storage, RTSP support, automated testing, and a professional monitoring dashboard.
+
+The architecture separates temporary tracking identities from persistent face identities, allowing visitors to be recognized across tracking sessions without incorrectly increasing the unique visitor count.
+
+The project is designed to be understandable, configurable, testable, and extensible for future real-world deployment.
 
 This project is a part of a hackathon run by https://katomaran.com
+
