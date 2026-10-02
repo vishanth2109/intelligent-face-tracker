@@ -930,7 +930,7 @@ FACE_ID = persistent visitor identity
 
 # 26. Demo
 
-Demo video:
+Demo video: https://drive.google.com/file/d/1fm3MkY59T0k4vvJMbE5MKIskg6axDjD6/view?usp=drivesdk
 
 ```text
 To be added before final submission.
@@ -988,7 +988,7 @@ https://github.com/vishanth2109/intelligent-face-tracker
 
 **GitHub Repository:** Published
 
-**Final Demo:** To be recorded
+**Final Demo:** Recorded
 
 ---
 
